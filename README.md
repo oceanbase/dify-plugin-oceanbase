@@ -7,8 +7,6 @@
 
 ### Description
 
-[中文介绍](https://github.com/oceanbase/dify-plugin-oceanbase/blob/main/README_CN.md)
-
 This plugin is used to query OceanBase databases and includes multiple tools to help users interact with OceanBase databases.
 
 ### Tools Introduction
