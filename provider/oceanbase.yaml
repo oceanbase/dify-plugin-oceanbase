@@ -15,6 +15,7 @@ tools:
   - tools/execute_sql.yaml
   - tools/get_table_schema.yaml
   - tools/text2sql.yaml
+  - tools/hybrid_search.yaml
 extra:
   python:
     source: provider/oceanbase.py

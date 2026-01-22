@@ -1,0 +1,107 @@
+identity:
+  name: hybrid_search
+  author: oceanbase
+  label:
+    en_US: Hybrid Search
+    zh_Hans: 混合搜索
+description:
+  human:
+    en_US: Execute hybrid search combining vector similarity and full-text search on OceanBase or SeekDB tables.
+    zh_Hans: 在 OceanBase 或 SeekDB 表上执行结合向量相似度和全文搜索的混合搜索。
+  llm: This tool is used to execute hybrid search combining vector similarity and full-text search on OceanBase or SeekDB tables.
+parameters:
+  - name: table_names
+    type: string
+    required: true
+    label:
+      en_US: Table Names
+      zh_Hans: 表名
+    human_description:
+      en_US: The names of the tables to query. Separate multiple tables with commas. Tables must have a vector index or full-text index.
+      zh_Hans: 要查询的表名。多个表用逗号分隔。表必须有向量索引或全文索引。
+    llm_description: The names of the tables to query. Separate multiple tables with commas. An error will occur if the specified tables do not have a vector index or full-text index.
+    form: llm
+  - name: query
+    type: string
+    required: true
+    label:
+      en_US: Query Text
+      zh_Hans: 查询文本
+    human_description:
+      en_US: The text to search for.
+      zh_Hans: 要搜索的文本。
+    llm_description: The text to search for.
+    form: llm
+  - name: top_k
+    type: number
+    required: false
+    default: 10
+    label:
+      en_US: Top K Results
+      zh_Hans: 返回结果数量
+    human_description:
+      en_US: The number of results to return. Defaults to 10.
+      zh_Hans: 返回的结果数量。默认为 10。
+    llm_description: The number of results to return. Defaults to 10. Note that when multiple table names are specified, a rerank model should be set.
+    form: form
+  - name: embedding_model
+    type: model-selector
+    scope: text-embedding
+    required: true
+    label:
+      en_US: Embedding Model
+      zh_Hans: 嵌入模型
+    human_description:
+      en_US: The embedding model to use for converting query text to vectors.
+      zh_Hans: 用于将查询文本转换为向量的嵌入模型。
+    llm_description: The embedding model to use for converting query text to vectors.
+    form: form
+  - name: rerank_model
+    type: model-selector
+    scope: rerank
+    required: false
+    label:
+      en_US: Rerank Model
+      zh_Hans: 重排模型
+    human_description:
+      en_US: The rerank model to use for re-ranking results. Required when multiple table names are specified.
+      zh_Hans: 用于重新排序结果的重排模型。指定多个表名时必需。
+    llm_description: The rerank model to use for re-ranking results. Required when multiple table names are specified; optional when a single table is specified.
+    form: form
+  - name: format
+    type: select
+    required: false
+    label:
+      en_US: Output format
+      zh_Hans: 输出格式
+    human_description:
+      en_US: Choose the output format.
+      zh_Hans: 选择输出格式。
+    form: form
+    default: json
+    options:
+      - value: json
+        label:
+          en_US: JSON
+          zh_Hans: JSON
+      - value: md
+        label:
+          en_US: Markdown
+          zh_Hans: Markdown
+  - name: config_options
+    type: string
+    required: false
+    form: form
+    label:
+      en_US: DB Config Options
+      zh_Hans: 数据库连接配置选项
+    human_description:
+      en_US: |
+        Optional. For example {"connect_args": {"ssl": {"ca": "/path/to/ca.pem"}}}
+        More connection options can be found at https://docs.sqlalchemy.org/en/20/core/engines.html#sqlalchemy.create_engine
+      zh_Hans: |
+        选填项。例如 {"connect_args": {"ssl": {"ca": "/path/to/ca.pem"}}}
+        更多连接选项可参考 https://docs.sqlalchemy.org/en/20/core/engines.html#sqlalchemy.create_engine
+extra:
+  python:
+    source: tools/hybrid_search.py

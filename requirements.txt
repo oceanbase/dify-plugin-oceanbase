@@ -1,4 +1,4 @@
 dify_plugin>=0.2.0,<0.3.0
-pyobvector~=0.2.16
+pyobvector~=0.2.22
 pymysql~=1.1.1
 records[all]~=0.6.0
