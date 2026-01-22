@@ -90,7 +90,7 @@ class HybridSearchTool(Tool):
                     for idx in indexes:
                         # Check if it's a full-text index
                         # In MySQL/OceanBase, full-text indexes have a specific type
-                        if hasattr(idx, "type") and idx.get("type") == "FULLTEXT":
+                        if isinstance(idx, dict) and idx.get("type") == "FULLTEXT":
                             fulltext_columns.extend(idx.get("column_names", []))
                     
                     table_infos[table_name] = {
@@ -128,6 +128,7 @@ class HybridSearchTool(Tool):
     ) -> list[dict[str, Any]]:
         """Perform hybrid search using pyobvector's HybridSearch class."""
         # Initialize HybridSearch client
+        # The URI format expected by HybridSearch is hostname:port without protocol
         hybrid_client = HybridSearch(
             uri=f"{ob_config.hostname}:{ob_config.port}",
             user=ob_config.username,
@@ -152,56 +153,70 @@ class HybridSearchTool(Tool):
             
             # Build the search body for DBMS_HYBRID_SEARCH API
             # The format is compatible with Elasticsearch-style queries
+            # Build hybrid query combining vector and full-text search
+            queries = []
+            
+            # Add vector search query if vector columns exist
+            if vector_columns:
+                # Use the first vector column (most tables will have one vector column)
+                vec_col = vector_columns[0]
+                queries.append({
+                    "knn": {
+                        "field": vec_col,
+                        "query_vector": embedded_query,
+                        "k": top_k,
+                        "num_candidates": top_k * 2
+                    }
+                })
+            
+            # Add full-text search query if fulltext columns exist
+            if fulltext_columns:
+                # Use the first fulltext column
+                ft_col = fulltext_columns[0]
+                queries.append({
+                    "match": {
+                        ft_col: query
+                    }
+                })
+            
+            # Build the final search body
             search_body = {
                 "query": {
                     "hybrid": {
-                        "queries": []
+                        "queries": queries
                     }
                 },
                 "size": top_k
             }
             
-            # Add vector search query if vector columns exist
-            if vector_columns:
-                for vec_col in vector_columns:
-                    search_body["query"]["hybrid"]["queries"].append({
-                        "knn": {
-                            "field": vec_col,
-                            "query_vector": embedded_query,
-                            "k": top_k,
-                            "num_candidates": top_k * 2
-                        }
-                    })
-            
-            # Add full-text search query if fulltext columns exist
-            if fulltext_columns:
-                for ft_col in fulltext_columns:
-                    search_body["query"]["hybrid"]["queries"].append({
-                        "match": {
-                            ft_col: query
-                        }
-                    })
-            
             try:
                 # Execute hybrid search
                 results = hybrid_client.search(index=table_name, body=search_body)
                 
-                # Add table name to each result
-                if isinstance(results, dict) and "hits" in results:
-                    hits = results.get("hits", {}).get("hits", [])
-                    for hit in hits:
-                        hit["_table"] = table_name
-                        all_results.append(hit)
+                # Add table name to each result and normalize the structure
+                if isinstance(results, dict):
+                    # Handle Elasticsearch-style response
+                    if "hits" in results:
+                        hits = results.get("hits", {}).get("hits", [])
+                        for hit in hits:
+                            hit["_table"] = table_name
+                            all_results.append(hit)
+                    else:
+                        # If not in expected format, add the whole result
+                        results["_table"] = table_name
+                        all_results.append(results)
                 elif isinstance(results, list):
                     for result in results:
-                        result["_table"] = table_name
+                        if isinstance(result, dict):
+                            result["_table"] = table_name
                         all_results.append(result)
             except Exception as e:
                 raise ValueError(f"Error executing hybrid search on table '{table_name}': {str(e)}")
         
         # Sort results by score if available
-        if all_results and "_score" in all_results[0]:
-            all_results.sort(key=lambda x: x.get("_score", 0), reverse=True)
+        if all_results and isinstance(all_results[0], dict):
+            if "_score" in all_results[0]:
+                all_results.sort(key=lambda x: x.get("_score", 0), reverse=True)
         
         # Limit to top_k results
         return all_results[:top_k]
@@ -257,8 +272,11 @@ class HybridSearchTool(Tool):
             reranked_results.sort(key=lambda x: x.get("_rerank_score", 0), reverse=True)
             return reranked_results[:top_k]
         except Exception as e:
-            # If reranking fails, return original results
-            print(f"Warning: Reranking failed: {str(e)}")
+            # If reranking fails, log warning and return original results
+            # Note: In production, consider using proper logging framework
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Reranking failed: {str(e)}")
             return results
 
     def _format_results(
