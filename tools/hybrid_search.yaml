@@ -42,7 +42,7 @@ parameters:
     human_description:
       en_US: The number of results to return. Defaults to 10.
       zh_Hans: 返回的结果数量。默认为 10。
-    llm_description: The number of results to return. Defaults to 10. Note that when multiple table names are specified, a rerank model should be set.
+    llm_description: The number of results to return. Defaults to 10.
     form: form
   - name: embedding_model
     type: model-selector
@@ -56,18 +56,7 @@ parameters:
       zh_Hans: 用于将查询文本转换为向量的嵌入模型。
     llm_description: The embedding model to use for converting query text to vectors.
     form: form
-  - name: rerank_model
-    type: model-selector
-    scope: rerank
-    required: false
-    label:
-      en_US: Rerank Model
-      zh_Hans: 重排模型
-    human_description:
-      en_US: The rerank model to use for re-ranking results. Required when multiple table names are specified.
-      zh_Hans: 用于重新排序结果的重排模型。指定多个表名时必需。
-    llm_description: The rerank model to use for re-ranking results. Required when multiple table names are specified; optional when a single table is specified.
-    form: form
+
   - name: filter
     type: string
     required: false

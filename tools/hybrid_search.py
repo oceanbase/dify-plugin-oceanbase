@@ -5,7 +5,6 @@ from typing import Any
 from dify_plugin import Tool
 from dify_plugin.entities.tool import ToolInvokeMessage
 from dify_plugin.entities.model.text_embedding import TextEmbeddingModelConfig
-from dify_plugin.entities.model.rerank import RerankModelConfig
 from pyobvector.client.hybrid_search import HybridSearch
 from sqlalchemy import create_engine, inspect
 
@@ -18,7 +17,6 @@ class HybridSearchTool(Tool):
         query = tool_parameters.get("query", "").strip()
         top_k = tool_parameters.get("top_k", 10)
         embedding_model_config = tool_parameters.get("embedding_model")
-        rerank_model_config = tool_parameters.get("rerank_model")
         filter_param = tool_parameters.get("filter", "").strip()
         config_options = tool_parameters.get("config_options") or "{}"
 
@@ -45,10 +43,6 @@ class HybridSearchTool(Tool):
 
         # Parse table names
         tables = [t.strip() for t in table_names.split(",")]
-        
-        # Validate rerank model for multiple tables
-        if len(tables) > 1 and not rerank_model_config:
-            raise ValueError("rerank_model is required when multiple table names are specified")
 
         # Get OceanBase config
         ob_config = OceanBaseConfig(self.runtime.credentials)
@@ -66,11 +60,7 @@ class HybridSearchTool(Tool):
             ob_config, config_options, tables, query, embedded_query, top_k, table_info, filter_dict
         )
 
-        # Step 4: If rerank model is set, re-rank the results
-        if rerank_model_config and search_results:
-            search_results = self._rerank_results(search_results, query, rerank_model_config, top_k)
-
-        # Step 5: Return the search results
+        # Step 4: Return the search results
         return_format = tool_parameters.get("format", "json")
         yield from self._format_results(search_results, return_format)
 
@@ -248,71 +238,7 @@ class HybridSearchTool(Tool):
         # Limit to top_k results
         return all_results[:top_k]
 
-    def _rerank_results(
-        self,
-        results: list[dict[str, Any]],
-        query: str,
-        rerank_model_config: dict,
-        top_k: int
-    ) -> list[dict[str, Any]]:
-        """Re-rank the results using the rerank model."""
-        if not results:
-            return results
-        
-        # Extract documents from results for reranking
-        docs = []
-        for result in results:
-            # Extract the source document or combine fields
-            if "_source" in result:
-                doc = result["_source"]
-            else:
-                doc = result
-            
-            # Convert to string representation for reranking
-            doc_text = " ".join([str(v) for v in doc.values() if v is not None])
-            docs.append(doc_text)
-        
-        # Use rerank model to reorder results
-        try:
-            # Convert dict to RerankModelConfig if needed
-            if isinstance(rerank_model_config, dict):
-                # Add default values for required fields if missing
-                if "score_threshold" not in rerank_model_config:
-                    rerank_model_config["score_threshold"] = 0.0
-                if "top_n" not in rerank_model_config:
-                    rerank_model_config["top_n"] = top_k
-                rerank_model_config = RerankModelConfig(**rerank_model_config)
-            
-            rerank_response = self.session.model.rerank.invoke(
-                model_config=rerank_model_config,
-                query=query,
-                docs=docs
-            )
-            
-            if not rerank_response or not rerank_response.docs:
-                return results
-            
-            # Create a mapping of reranked positions
-            reranked_docs = rerank_response.docs
-            
-            # Sort by rerank score
-            reranked_results = []
-            for rerank_doc in reranked_docs:
-                idx = rerank_doc.index
-                result = results[idx].copy()
-                result["_rerank_score"] = rerank_doc.score
-                reranked_results.append(result)
-            
-            # Sort by rerank score and return top_k
-            reranked_results.sort(key=lambda x: x.get("_rerank_score", 0), reverse=True)
-            return reranked_results[:top_k]
-        except Exception as e:
-            # If reranking fails, log warning and return original results
-            # Note: In production, consider using proper logging framework
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Reranking failed: {str(e)}")
-            return results
+
 
     def _format_results(
         self, results: list[dict[str, Any]], return_format: str

@@ -36,12 +36,13 @@ This plugin is used to query OceanBase databases and includes multiple tools to 
 
 - **Function**: Execute hybrid search combining vector similarity and full-text search on OceanBase or SeekDB tables
 - **Requirements**: Supported on OceanBase 4.4.1+ and SeekDB. Tables must have vector indexes or full-text indexes.
+- **Table Type Support**: 
+  - Heap tables: Fully supported with primary key for hybrid search
+  - Primary key tables : Not supported for hybrid search
 - **Features**:
   - Combines vector similarity search with full-text search for more accurate results
   - Supports searching across multiple tables
   - Uses embedding models to convert query text to vectors
-  - Optional reranking with rerank models for improved result quality
-  - Required rerank model when searching multiple tables
 - **Use Cases**: Semantic search, document retrieval, question answering systems
 
 ### Usage Instructions

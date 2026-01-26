@@ -36,7 +36,6 @@ Now you can edit the `manifest.yaml` file to describe your Plugin, here is the b
       - enabled(bool)
       - llm(bool)
       - text_embedding(bool)
-      - rerank(bool)
       - tts(bool)
       - speech2text(bool)
       - moderation(bool)
