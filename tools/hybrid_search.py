@@ -4,6 +4,8 @@ from typing import Any
 
 from dify_plugin import Tool
 from dify_plugin.entities.tool import ToolInvokeMessage
+from dify_plugin.entities.model.text_embedding import TextEmbeddingModelConfig
+from dify_plugin.entities.model.rerank import RerankModelConfig
 from pyobvector.client.hybrid_search import HybridSearch
 from sqlalchemy import create_engine, inspect
 
@@ -115,6 +117,10 @@ class HybridSearchTool(Tool):
 
     def _embed_query(self, query: str, embedding_model_config: dict) -> list[float]:
         """Embed the query text using the embedding model."""
+        # Convert dict to TextEmbeddingModelConfig if needed
+        if isinstance(embedding_model_config, dict):
+            embedding_model_config = TextEmbeddingModelConfig(**embedding_model_config)
+        
         response = self.session.model.text_embedding.invoke(
             model_config=embedding_model_config,
             texts=[query]
@@ -162,50 +168,53 @@ class HybridSearchTool(Tool):
                 )
             
             # Build the search body for DBMS_HYBRID_SEARCH API
-            # The format is compatible with Elasticsearch-style queries
+            # The format follows OceanBase DBMS_HYBRID_SEARCH specification
             # Build hybrid query combining vector and full-text search
-            queries = []
+            search_body = {
+                "size": top_k
+            }
             
             # Add vector search query if vector columns exist
             if vector_columns:
                 # Use the first vector column (most tables will have one vector column)
                 vec_col = vector_columns[0]
-                queries.append({
-                    "knn": {
-                        "field": vec_col,
-                        "query_vector": embedded_query,
-                        "k": top_k,
-                        "num_candidates": top_k * 2
-                    }
-                })
+                search_body["knn"] = {
+                    "field": vec_col,
+                    "k": top_k,
+                    "query_vector": embedded_query
+                }
             
             # Add full-text search query if fulltext columns exist
             if fulltext_columns:
                 # Use the first fulltext column
                 ft_col = fulltext_columns[0]
-                queries.append({
-                    "match": {
-                        ft_col: query
+                search_body["query"] = {
+                    "bool": {
+                        "should": [
+                            {
+                                "match": {
+                                    ft_col: {
+                                        "query": query
+                                    }
+                                }
+                            }
+                        ]
                     }
-                })
-            
-            # Build the final search body
-            search_body = {
-                "query": {
-                    "hybrid": {
-                        "queries": queries
-                    }
-                },
-                "size": top_k
-            }
-            
-            # Add filter if provided (Elasticsearch-style filter for additional conditions)
-            if filter_dict:
-                hybrid_query = search_body["query"].pop("hybrid")
-                search_body["query"]["bool"] = {
-                    "must": [{"hybrid": hybrid_query}],
-                    "filter": filter_dict
                 }
+            
+            # Add filter if provided
+            if filter_dict:
+                if "query" in search_body:
+                    if "bool" in search_body["query"]:
+                        search_body["query"]["bool"]["filter"] = filter_dict
+                    else:
+                        search_body["query"]["bool"] = {"filter": filter_dict}
+                else:
+                    search_body["query"] = {
+                        "bool": {
+                            "filter": filter_dict
+                        }
+                    }
             
             try:
                 # Execute hybrid search
@@ -265,11 +274,19 @@ class HybridSearchTool(Tool):
         
         # Use rerank model to reorder results
         try:
+            # Convert dict to RerankModelConfig if needed
+            if isinstance(rerank_model_config, dict):
+                # Add default values for required fields if missing
+                if "score_threshold" not in rerank_model_config:
+                    rerank_model_config["score_threshold"] = 0.0
+                if "top_n" not in rerank_model_config:
+                    rerank_model_config["top_n"] = top_k
+                rerank_model_config = RerankModelConfig(**rerank_model_config)
+            
             rerank_response = self.session.model.rerank.invoke(
                 model_config=rerank_model_config,
                 query=query,
-                docs=docs,
-                score=True
+                docs=docs
             )
             
             if not rerank_response or not rerank_response.docs:
