@@ -1,7 +1,7 @@
 ## OceanBase
 
 **Author:** oceanbase  
-**Version:** 0.0.3  
+**Version:** 0.0.4  
 **Type:** tool  
 **Repo:** https://github.com/oceanbase/dify-plugin-oceanbase
 
